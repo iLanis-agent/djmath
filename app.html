@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DJMath</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:#0d1117; color:#e6edf3; }
+  .wrap { max-width:720px; margin:0 auto; padding:36px 20px 60px; }
+  h1 { font-size:1.9rem; margin:0; }
+  .tag { color:#9da7b3; margin:6px 0 18px; }
+  .presets { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:22px; }
+  .presets button { background:#21262d; color:#c9d1d9; border:1px solid #30363d; border-radius:999px; padding:8px 16px; font-size:0.9rem; cursor:pointer; }
+  .presets button:hover { border-color:#3fb950; color:#3fb950; }
+  section { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:20px; margin-bottom:18px; }
+  h2 { font-size:1rem; margin:0 0 14px; color:#e6edf3; }
+  .row { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px; }
+  label { display:block; font-size:0.78rem; color:#9da7b3; margin-bottom:4px; }
+  input, select { background:#0d1117; border:1px solid #30363d; color:#e6edf3; border-radius:6px; padding:8px 10px; font-size:0.95rem; width:130px; }
+  .outs { display:flex; flex-wrap:wrap; gap:12px; }
+  .out { flex:1 1 200px; background:#0d1117; border:1px solid #21262d; border-radius:8px; padding:12px 14px; }
+  .out .val { font-size:1.15rem; font-weight:700; color:#58a6ff; }
+  .out .lab { font-size:0.75rem; color:#9da7b3; margin-top:4px; }
+  .warn { color:#f0883e; }
+  .foot { color:#6e7681; font-size:0.8rem; margin-top:10px; }
+  a { color:#58a6ff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>&#127911; DJMath</h1>
+  <p class="tag">DJ mixing math - the pitch slider is a percentage not a BPM, the Camelot wheel is a clock, and a phrase is 32 beats, not a feeling.</p>
+  <div class="presets">
+    <button data-p="house">House warmup</button>
+    <button data-p="techno">Peak techno</button>
+    <button data-p="dnb">House into DnB</button>
+    <button data-p="hiphop">Hip-hop half-time</button>
+  </div>
+
+  <section>
+    <h2>1. Tempo match</h2>
+    <div class="row">
+      <div><label>Playing BPM</label><input id="from" type="number" step="1" min="60" value="122"></div>
+      <div><label>Incoming BPM</label><input id="to" type="number" step="1" min="60" value="124"></div>
+      <div><label>Slider range</label>
+        <select id="range"><option value="8">&plusmn;8%</option><option value="16">&plusmn;16%</option></select></div>
+    </div>
+    <div class="outs">
+      <div class="out"><div class="val" id="o-slider"></div><div class="lab">Slider setting to match</div></div>
+      <div class="out"><div class="val" id="o-mode"></div><div class="lab">Best match route</div></div>
+      <div class="out"><div class="val" id="o-check"></div><div class="lab">Sanity check at +6%</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Key mix (Camelot)</h2>
+    <div class="row">
+      <div><label>Current key</label><input id="key" type="text" value="8A" maxlength="3" style="width:70px"></div>
+    </div>
+    <div class="outs" id="o-keys"></div>
+  </section>
+
+  <section>
+    <h2>3. Phrase and transition</h2>
+    <div class="row">
+      <div><label>Beats into current track</label><input id="beats" type="number" step="1" min="0" value="50"></div>
+      <div><label>Transition length</label>
+        <select id="bars"><option value="8">8 bars</option><option value="16">16 bars</option><option value="32">32 bars</option></select></div>
+    </div>
+    <div class="outs">
+      <div class="out"><div class="val" id="o-boundary"></div><div class="lab">Beats to next 32-beat phrase</div></div>
+      <div class="out"><div class="val" id="o-trans"></div><div class="lab">Transition length in seconds</div></div>
+    </div>
+  </section>
+
+  <p class="foot">Math, not ears - trust the phrase grid over the vibe. <a href="index.html">About</a> &middot; <a href="https://github.com/iLanis-agent/djmath">Code</a></p>
+</div>
+<script src="engine.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var num = function (id) { var v = parseFloat($(id).value); return isNaN(v) ? 0 : v; };
+
+  var PRESETS = {
+    house:  { from:122, to:124, range:'8',  key:'8A',  beats:50,  bars:'8'  },
+    techno: { from:128, to:132, range:'8',  key:'5A',  beats:100, bars:'16' },
+    dnb:    { from:124, to:174, range:'16', key:'2A',  beats:64,  bars:'16' },
+    hiphop: { from:90,  to:95,  range:'8',  key:'11B', beats:33,  bars:'8'  }
+  };
+
+  function compute() {
+    var from = num('from'), to = num('to'), range = parseInt($('range').value, 10);
+    var m = DJMath.bpmMatch(from, to, range);
+    var sEl = $('o-slider');
+    sEl.textContent = (m.pct > 0 ? '+' : '') + m.pct + '% on the slider';
+    sEl.className = m.inRange ? 'val' : 'val warn';
+    sEl.nextElementSibling.textContent = m.inRange ? 'Slider setting to match' : 'Slider setting to match (OUT OF RANGE)';
+    $('o-mode').textContent = m.mode + (m.mode === 'direct' ? '' : ' - target ' + m.target + ' BPM');
+    $('o-check').textContent = DJMath.sliderBpm(from, 6) + ' BPM';
+
+    var keys = DJMath.compatibleKeys($('key').value);
+    var box = $('o-keys');
+    if (!keys) {
+      box.innerHTML = '<div class="out"><div class="val warn">Enter a Camelot key like 8A or 4B</div><div class="lab">Current key</div></div>';
+    } else {
+      box.innerHTML = keys.map(function (k) {
+        return '<div class="out"><div class="val">' + k.code + '</div><div class="lab">' + k.label + '</div></div>';
+      }).join('');
+    }
+
+    var left = DJMath.beatsToBoundary(num('beats'));
+    $('o-boundary').textContent = left === 0 ? 'ON the boundary - go now' : left + ' beats (' + DJMath.secondsFor(left, num('from')) + 's)';
+    var bars = parseInt($('bars').value, 10);
+    $('o-trans').textContent = DJMath.transitionSeconds(bars, num('from')) + 's for ' + bars + ' bars';
+  }
+
+  function apply(p) {
+    ['from','to','range','key','beats','bars'].forEach(function (id) { $(id).value = p[id]; });
+    compute();
+  }
+
+  document.querySelectorAll('.presets button').forEach(function (b) {
+    b.addEventListener('click', function () { apply(PRESETS[b.getAttribute('data-p')]); });
+  });
+  document.querySelectorAll('input, select').forEach(function (el) {
+    el.addEventListener('input', compute);
+    el.addEventListener('change', compute);
+  });
+  apply(PRESETS.house);
+}());
+</script>
+</body>
+</html>
